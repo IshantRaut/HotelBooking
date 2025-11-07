@@ -1,57 +1,52 @@
-import { response } from 'express';
 import User from '../models/User.js';
 import { Webhook } from 'svix';
 
-const clerkWebhooks = async ()=>{
-    try {
-        // Initialize the Webhook with your Clerk secret
-        const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
+const clerkWebhooks = async (req, res) => {
+  try {
+    const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
 
-        //Getting headers
+    const headers = {
+      "svix-id": req.headers['svix-id'],
+      "svix-timestamp": req.headers['svix-timestamp'],
+      "svix-signature": req.headers['svix-signature'],
+    };
 
-        const headers = {
-            "svix-id":req.headers['svix-id'],
-            "svix-timestamp":req.headers['svix-timestamp'],
-            "svix-signature":req.headers['svix-signature'],
+    // Verify signature using raw body Buffer
+    whook.verify(req.body, headers);
 
-        };
+    // Parse the raw body to JSON
+    const evt = JSON.parse(req.body.toString());
+    const { data, type } = evt;
 
-        // Getting the body of the request
-        await whook.verify(JSON.stringify(req.body), headers);
-        // Extract the event type and data
-        const {data,type} = req.body
-        const userData = {
-            _id:data.id,
-            email:data.email_addresses[0].email_address,
-            username:data.firstname + " " + data.lastname,
-            image:data.image_url,
-        }
+    const userData = {
+      _id: data.id,
+      email: data.email_addresses[0].email_address,
+      username: data.first_name + " " + data.last_name,
+      image: data.image_url,
+    };
 
-        switch(type){
-            case 'user.created':{
-                // Create a new user in your database
-                await User.create(userData);
-                break;
-            }
-            case 'user.updated':{
-                // Update the existing user in your database
-                await User.findByIdAndUpdate(data.id, userData);
-               
-                break;
-            }
-            case 'user.deleted':{
-                // Update the existing user in your database
-                await User.findByIdAndDelete(data.id);
-               
-                break;
-            }
-            default:
-                break;
-        }
-        response.json({success:true,message:"Webhook processed successfully"});
-    } catch (error) {
-        console.log("Error processing webhook:", error.message);
-        response.json({success:false,message:"Error processing webhook",error:error.message});
+    console.log("Received webhook type:", type);
+    console.log("User data:", userData);
+
+    switch (type) {
+      case 'user.created':
+        await User.create(userData);
+        break;
+      case 'user.updated':
+        await User.findByIdAndUpdate(data.id, userData);
+        break;
+      case 'user.deleted':
+        await User.findByIdAndDelete(data.id);
+        break;
+      default:
+        break;
     }
-}
+
+    return res.status(200).json({ success: true, message: "Webhook processed successfully" });
+  } catch (error) {
+    console.error("Error processing webhook:", error.message);
+    return res.status(500).json({ success: false, message: "Error processing webhook", error: error.message });
+  }
+};
+
 export default clerkWebhooks;

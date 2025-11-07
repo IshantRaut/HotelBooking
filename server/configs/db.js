@@ -1,14 +1,16 @@
 import mongoose from 'mongoose';
 
 const connectDB=async ()=>{
-    try {
-        mongoose.connection.on('connected', () => {
-            console.log('MongoDB connection successful');
-        });
-        await mongoose.connect(`${process.env.MONGO_URI}/Hotel`, )
-    } catch (error) {
-        console.log(error.message);
-    }
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('MongoDB connected');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
 }
 
 export default connectDB;
